@@ -1,0 +1,71 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: watchlist-config
+  namespace: service-discovery
+data:
+  watchlist.csv: |
+    GOOGLE_BY_DNS,HTTPS,google.com,443
+    GOOGLE_BY_IP,HTTP,172.217.18.78,80
+    BAD_ADDRESS,HTTP,254.254.254.254,99
+    ORACLE_EQFX,TCP,some-host.com,1521    
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-discovery-config
+  namespace: service-discovery
+data:
+  AWS_DEFAULT_REGION: "us-east-1" 
+  topicArn: "<some-topicArn-for-SNS-notification>"
+  notification_send_period: "-30"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: service-discovery
+  labels:
+    app: service-discovery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+    spec:
+      containers:
+      - name: service-discovery
+        image: URI-of-app-image
+        imagePullPolicy: Always
+        command: ["python", "./app.py"]
+        env:
+        - name: AWS_DEFAULT_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: service-discovery-config
+              key: AWS_DEFAULT_REGION
+        - name: topicArn
+          valueFrom:
+            configMapKeyRef:
+              name: service-discovery-config
+              key: topicArn
+        - name: notification_send_period
+          valueFrom:
+            configMapKeyRef:
+              name: service-discovery-config
+              key: notification_send_period
+        volumeMounts:
+        - name: config 
+          mountPath: /config
+      volumes:
+      - name: config 
+        configMap: 
+          name: watchlist-config
+      restartPolicy: Always
